@@ -1,0 +1,441 @@
+<?page title="Stock Online" contentType="text/html;charset=UTF-8"?>
+<zk xmlns:x="native">
+<window title="ระบบตรวจสอบสต็อกสินค้าออนไลน์  Beta Vesion." border="normal" onCreate="vsbpanel()">
+<label id="lblitemcode" value="${applicationScope['itemcode']}" visible="false" />
+<zscript language="Java">
+<![CDATA[
+
+ import java.sql.*;
+ import java.io.*;
+ import org.zkoss.zk.ui.Executions;
+ import org.zkoss.zk.ui.Component;   
+ import org.zkoss.zk.ui.event.Event;
+ import org.zkoss.zk.ui.event.ForwardEvent;
+ import java.text.DecimalFormat;
+ import org.zkoss.zul.mesg.*;
+ 
+ DecimalFormat duformat = new DecimalFormat("#,###.00");	
+ String vServer;
+ String vURL;
+ String vUser;
+ String vPassword;
+ String vDBname;
+ vServer="//192.168.0.7:1433;";
+ vUser="siravich";
+ vPassword ="thaikom$$";
+ vDBname="bcnp";
+ String vitmcodex;
+ String vItem;
+ String vSLItem;
+ Double vTotalstk;
+ Double vSTKqty;
+ String vUnitcode;
+ 
+ Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+ 
+ 
+
+
+public void Searchitem(){
+	String strQry;
+	Integer n=0;
+	
+	if(txtitemsearch.getText()==""){
+		alert("กรุณาป้อนชื่อสินค้าหรือรหัสสินค้าก่อน");
+	}
+	else {
+	 vItem = txtitemsearch.getValue();
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+""; 
+	 try {
+		Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+		Statement s = conn.createStatement();
+			//strQry="exec USP_STK_Chkstockonline_head '"+vItem+"'";
+		
+			strQry="select a.*,ISNULL(b.qty,'00') as S01Qty,ISNULL(c.qty,'00') as S02Qty from "+
+			" ( select code,name1,defstkunitcode from bcitem"+
+			" where code like '%"+vItem+"%' or name1 like '%"+vItem+"%' "+ 
+			" )a left join "+ 
+			" (select itemcode,qty from bcstkwarehouse where whcode='S01'"+
+			" ) b on a.code=b.itemcode "+
+			" left join "+ 
+			" (select itemcode,qty from s02db.bcnp.dbo.bcstkwarehouse where whcode='S02'"+
+			" ) c on a.code=c.itemcode";
+			
+			s.executeQuery(strQry);			
+			ResultSet rs = s.getResultSet();			
+		
+				while(rsitem.getItemCount()>0 ){
+					rsitem.removeItemAt(0);	
+					}
+				while (rs.next()){		
+					n+=1;		
+					
+					Listitem itli = new  Listitem();
+					
+					Listcell lc0 = new Listcell();
+					Listcell lc1 = new Listcell();
+					Listcell lc2 = new Listcell();
+					Listcell lc3 = new Listcell();				
+					Listcell lc4 = new Listcell();	
+					Listcell lc5 = new Listcell();	
+					/*
+					lc5.setStyle("background:#0268A9; font-weight:bold; color:#FFFFFF;");
+					lc8.setStyle("background:#0268A9; font-weight:bold; color:#FFFFFF;");
+					lc9.setStyle("background:#007405; font-weight:bold; color:#FFFFFF;");
+					*/
+					lc1.setStyle("text-align:left; font-weight:bold; color:#0068D2;");
+					lc2.setStyle("text-align:left; font-weight:bold; color:#0068D2;");
+					lc3.setStyle("text-align:right; font-weight:bold;");
+					lc4.setStyle("text-align:right; font-weight:bold;");
+				
+					lc0.setLabel(Integer.toString(n));
+					lc1.setLabel(rs.getString("code"));
+					lc2.setLabel(rs.getString("name1"));
+					lc3.setLabel(duformat.format(rs.getDouble("S01Qty")));
+					lc4.setLabel(duformat.format(rs.getDouble("S02Qty")));
+					lc5.setLabel(rs.getString("defstkunitcode"));					
+					
+					itli.appendChild(lc0);
+					itli.appendChild(lc1);
+					itli.appendChild(lc2);
+					itli.appendChild(lc3);	
+					itli.appendChild(lc4);
+					itli.appendChild(lc5);
+					
+				
+					rsitem.appendChild(itli);
+					}
+				System.out.println(rsitem.getItemCount());
+				if(rsitem.getItemCount()==0){
+					alert("ไม่พบสินค้าที่ค้นหา");
+				}else
+				{
+					 pnitm2.setVisible(false);
+					 pnrsitm.setVisible(true);
+				}
+				//show1Recod();
+				vResultItem();				
+	 }catch (SQLException e){}
+	
+	 vcountApp();
+	}
+}
+public void loadITMDetail(){
+	
+	// vitmcode=lblitemcode.getValue();
+	String vdatacenter ="";
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+"";   
+	 try {
+		 Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+ 		Statement s = conn.createStatement();
+			s.executeQuery("exec USP_STK_Chkstockonline '"+vitmcodex+"'");			
+			ResultSet rs = s.getResultSet();		
+			while(stkls.getItemCount()>0 ){
+			stkls.removeItemAt(0);	
+			}
+			vSTKqty=0.00;
+			vTotalstk=0.00;
+			while (rs.next()){	
+		
+					
+			vUnitcode=rs.getString("unitcode");
+			Listitem itmli = new  Listitem();
+			Listcell lcdc = new Listcell();
+			Listcell lcqty = new Listcell();
+			vSTKqty = Double.parseDouble(rs.getString("qty"));
+			if(vSTKqty !=null){
+				vTotalstk +=vSTKqty;
+				}		
+			vdatacenter=rs.getString("datacenter");				
+			lcdc.setLabel(vdatacenter);		
+			if(vSTKqty<0){
+				lcqty.setStyle("font-weight:bold; color:#C6021D;");
+				lcqty.setLabel(duformat.format(vSTKqty));
+			}else {
+				lcqty.setStyle("font-weight:bold;");
+				lcqty.setLabel(duformat.format(vSTKqty));
+			}
+			
+			itmli.appendChild(lcdc);		
+			itmli.appendChild(new Listcell(rs.getString("whcode")));
+			itmli.appendChild(new Listcell(rs.getString("shelfcode")));	
+			itmli.appendChild(lcqty);
+			itmli.appendChild(new Listcell(vUnitcode));
+			stkls.appendChild(itmli);		
+			lblitmCode.setValue(rs.getString("itemcode"));
+			lblitemname.setValue(rs.getString("itemname"));
+			}			
+			lblitmCode.setStyle("font-size:15px; font-weight:bold; color:#0083B3;");
+			lblitemname.setStyle("font-size:15px; font-weight:bold; color:#0083B3;");
+			stktotal.setValue(duformat.format(vTotalstk));
+			stkunit.setValue(vUnitcode);
+			
+	 }catch (SQLException e){}
+	 if(stkls.getItemCount()==0){			
+			alert("ไม่มีสต็อกสินค้าทั้งสองสาขา.");	
+			clrScreen();
+			vsbpanel();
+			vResultItem();
+		}else {
+			pnrsitm.setVisible(false);
+			pnitm2.setVisible(true);
+		}
+ }
+public void loadDetail(){
+	
+	// vitmcode=lblitemcode.getValue();
+	String vdatacenter ="";
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+"";   
+	 try {
+		 Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+ 		Statement s = conn.createStatement();
+			s.executeQuery("exec USP_STK_Chkstockonline '"+vitmcodex+"'");			
+			ResultSet rs = s.getResultSet();		
+			while(stkls.getItemCount()>0 ){
+			stkls.removeItemAt(0);	
+			}
+			vSTKqty=0.00;
+			vTotalstk=0.00;
+			while (rs.next()){	
+		
+					
+			vUnitcode=rs.getString("unitcode");
+			Listitem itmli = new  Listitem();
+			Listcell lcdc = new Listcell();
+			Listcell lcqty = new Listcell();
+			vSTKqty = Double.parseDouble(rs.getString("qty"));
+			if(vSTKqty !=null){
+				vTotalstk +=vSTKqty;
+				}		
+			vdatacenter=rs.getString("datacenter");				
+			lcdc.setLabel(vdatacenter);		
+			if(vSTKqty<0){
+				lcqty.setStyle("font-weight:bold; color:#C6021D;");
+				lcqty.setLabel(duformat.format(vSTKqty));
+			}else {
+				lcqty.setStyle("font-weight:bold;");
+				lcqty.setLabel(duformat.format(vSTKqty));
+			}
+			
+			itmli.appendChild(lcdc);		
+			itmli.appendChild(new Listcell(rs.getString("whcode")));
+			itmli.appendChild(new Listcell(rs.getString("shelfcode")));	
+			itmli.appendChild(lcqty);
+			itmli.appendChild(new Listcell(vUnitcode));
+			stkls.appendChild(itmli);		
+			lblitmCode.setValue(rs.getString("itemcode"));
+			lblitemname.setValue(rs.getString("itemname"));
+			}			
+			lblitmCode.setStyle("font-size:15px; font-weight:bold; color:#0083B3;");
+			lblitemname.setStyle("font-size:15px; font-weight:bold; color:#0083B3;");
+			stktotal.setValue(duformat.format(vTotalstk));
+			stkunit.setValue(vUnitcode);
+			pnrsitm.setVisible(false);
+			pnitm2.setVisible(true);
+			
+	 }catch (SQLException e){}	 
+ }
+public void selectItem(){
+	Listitem idata = new Listitem();
+	idata = rsitem.getSelectedItem();
+	Listcell lc = (Listcell) idata.getChildren().get(1);
+	vSLItem = lc.getLabel();	
+	vitmcodex = vSLItem;
+	loadITMDetail();
+	//pnrsitm.setVisible(false);
+	//pnitm2.setVisible(true);
+}
+public void loadOneItem(){
+
+	Listitem idata = new Listitem();
+	idata = rsitem.getItemAtIndex(0);
+	Listcell lc = (Listcell) idata.getChildren().get(1);
+	
+	vSLItem = lc.getLabel();	
+	vitmcodex = vSLItem;
+	loadITMDetail();
+	System.out.println("ค่าลาเบล"+lc.getLabel());
+	//pnrsitm.setVisible(false);
+	//pnitm2.setVisible(true);
+}
+public void vsbpanel(){
+	pnrsitm.setVisible(false);
+	pnitm2.setVisible(false);
+}
+
+public void vcountApp(){
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+"";   
+	 try {
+		 Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+ 		Statement s = conn.createStatement();
+			s.executeQuery("exec USP_STK_Countused '1'");			
+			ResultSet rs = s.getResultSet();		
+	 }catch (SQLException e){}
+		
+}
+public void clrScreen(){
+	vsbpanel();
+	rsitem.getItems().clear();
+	stkls.getItems().clear();
+	txtitemsearch.setValue("");
+}
+public void vResultItem(){
+	Integer i=0;
+	i=rsitem.getItemCount();
+	if(i>0){
+		ltxt.setVisible(true);
+		intnum.setValue(i);
+		intnum.setVisible(true);
+		lunit.setVisible(true);		
+	}else{
+		ltxt.setVisible(false);
+		intnum.setValue(0);
+		intnum.setVisible(false);
+		lunit.setVisible(false);
+		
+	}
+}
+public void show1Recod(){
+	Integer x=0;
+	x=rsitem.getItemCount();
+	System.out.println(x);
+	if(x==1){
+		vitmcodex = txtitemsearch.getValue().trim();
+		System.out.println(vitmcodex);
+		loadITMDetail();
+	}
+}
+]]>
+</zscript>
+<style>
+	.hlbl{
+		font-size:normal; 
+		color:#0291CE;		
+	}
+	.hlbl1{
+	font-size:normal; 
+		color:#D20059;
+	}
+</style>
+<groupbox style="background: #008BB6">
+<hbox >
+<div>
+<image src="/img/stkhdr.png" />
+</div>
+</hbox>
+</groupbox>
+<groupbox> 
+<div align="center">
+<vbox>
+<groupbox visible="false">
+<x:table width="800px">
+	<x:tr><x:td class="hlbl">
+		ระบบ Stock online อยู่ในช่วงการปรับปรุงให้สามารถตรวจสอบสต็อกสินค้าทั้งสองสาขา รวมถึงสต็อก POS เพื่อให้การค้นหามีความเร็วในการคำนวณ กรุณาคลิกที่รายการสินค้านั้นๆ หรือ ป้อนรหัสสินค้าให้ตรง
+		เพื่อดูรายละเอียดสต็อกคงเหลือตามชั้นเก็บ ต่างๆ แยกตามคลังและศูนนย์ธุรกิจ
+	</x:td>
+	<x:td class="hlbl1">
+		ตั้งแต่วันที่  1-10-2555 ระบบ Stock online จะถูกรวมเข้ากับ Reorder เพื่อให้เข้าใช้งานในที่เดียวกัน  เป็น [NPONLINE]
+	</x:td>
+	</x:tr>
+</x:table>
+</groupbox>
+<hbox>
+<x:table>
+	<x:tr>
+		<x:td>
+			<label value="ป้อนชื่อหรือรหัสสินค้า" style="font-size:12px; font-weight:bold;color:#333333"/>
+		</x:td>
+		<x:td>
+			<textbox id="txtitemsearch" width="250px" height="20px" style="font-size:12px; font-weight:bold;color:#333333" onOK="Searchitem()"/>
+		</x:td>
+		<x:td>
+			<hbox>
+			<button label="ค้นหา" image="/img/zoom.png" onClick="Searchitem()" />
+			<button label="ล้างหน้าจอ" image="/img/trash.png" onClick="clrScreen(); vResultItem();" />
+			</hbox>
+		</x:td>
+	</x:tr>
+</x:table>
+
+
+
+</hbox>
+<x:table>
+	<x:tr>
+		<x:td>
+			<label value="จำนวนสินค้าที่ค้นพบ :" id="ltxt" visible="false" style="font-size:11px; font-weight:bold; color:#0068D2;"/>
+		</x:td>
+		<x:td>
+			<intbox id="intnum" visible="false" width="50px" readonly="true" style="text-align:right; font-size:15px; font-weight:bold; color:#D2003B;"/>
+		</x:td>
+		<x:td>
+			<label id="lunit" value="รายการ" visible="false" style="font-size:11px; font-weight:bold; color:#0068D2;"/>
+		</x:td>
+	</x:tr>
+</x:table>
+</vbox>
+ <popup id="ttipitm" width="280px">
+        <html style="font-weight:normal;color:#060BC5"><![CDATA[คลิกที่รายการสินค้าเพื่อดูรายการตามชั้นเก็บ.]]></html>
+ </popup>
+<hbox visible="false">
+</hbox>
+</div>
+</groupbox>
+<div align="center" >
+<panel id="pnrsitm" width="800px">
+   <panelchildren>
+   <listbox id="rsitem" mold="paging" tooltip="ttipitm">
+   	<listhead>
+		<listheader label="ลำดับ" width="40px"/>
+		<listheader label="รหัสสินค้า" sort="auto" width="150px"/>
+		<listheader label="ชื่อสินค้า" sort="auto" />		
+		<listheader label="S01QTY" sort="auto" align="right" width="80px"/>				
+		<listheader label="S02QTY" sort="auto" align="right" width="80px"/>				
+		<listheader label="หน่วยนับ" sort="auto" width="100px"/>		
+	</listhead>
+   </listbox>
+   </panelchildren>
+</panel>
+
+<panel id="pnitm2" width="800px">
+  <panelchildren>
+  <vbox>
+ <x:table>
+ 	<x:tr>
+ 		<x:td>
+ 			รหัสสินค้า :
+ 		</x:td>
+ 		<x:td>
+ 			<label id="lblitmCode" />
+ 		</x:td>
+ 		<x:td>
+ 			ชื่อสินค้า :
+ 		</x:td>
+ 		<x:td>
+ 			<label id="lblitemname" />
+ 		</x:td>
+ 	</x:tr>
+ </x:table>
+<listbox id="stkls" width="550px">
+	 <listhead>
+		<listheader label="ศูนย์ข้อมูล" width="80px" sort="auto" align="center"/>
+		<listheader label="คลัง"  width="80px" align="center"/>
+		<listheader label="ชั้นเก็บ" width="150px" align="center"/>		
+		<listheader label="จำนวนคงเหลือ" sort="auto" width="120px" align="right"/>
+		<listheader label="หน่วยนับ" width="120px"/>
+	 </listhead>
+	 <listfoot>
+		<listfooter/>
+		<listfooter/>
+		<listfooter align="right"><label value="ยอดรวมทั้งหมด" style="font-size:12px; font-weight:bold;color:#044ABC" /></listfooter>
+		<listfooter><label id="stktotal" style="font-size:12px; font-weight:bold;color:#044ABC" /></listfooter>
+		<listfooter><label id="stkunit" style="font-size:12px; font-weight:bold;color:#044ABC" /></listfooter>
+		
+	</listfoot>	
+</listbox>
+</vbox>
+  </panelchildren>
+</panel>
+</div>
+</window>
+</zk>

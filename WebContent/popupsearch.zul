@@ -1,0 +1,79 @@
+<?page title="new page title" contentType="text/html;charset=UTF-8"?>
+<zk>
+<window title="Find item" border="normal" closable="true" width="580px">
+<zscript>
+<![CDATA[
+import java.sql.*;
+import java.io.*;
+import org.zkoss.zk.ui.Executions;
+import org.zkoss.zk.ui.Component;   
+import org.zkoss.zk.ui.event.Event;
+import org.zkoss.zk.ui.event.ForwardEvent;
+import org.zkoss.zul.Messagebox;
+String vServer;
+String vURL;
+String vUser;
+String vPassword;
+String vDBname;
+String vItem;
+String vSLItem;
+
+vServer="//192.168.0.7:1433;";
+vUser="panuvich";
+vPassword ="thaikom$$";
+vDBname="bcnp";
+Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+public void Searchitem(){
+
+	 vItem = txtitemsearch.getValue();
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+""; 
+	 try {
+		Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+		Statement s = conn.createStatement();
+			s.executeQuery("select code, name1 from bcitem where (code like '%"+vItem+"%' or name1 like '%"+vItem+"%' or name2 like '%"+vItem+"%' or shortname like '%"+vItem+"%')");			
+			ResultSet rs = s.getResultSet();			
+		
+				while(rsitem.getItemCount()>0 ){
+					rsitem.removeItemAt(0);	
+					}
+				while (rs.next()){					
+					Listitem itli = new  Listitem();
+					itli.appendChild(new Listcell(rs.getString("code")));
+					itli.appendChild(new Listcell(rs.getString("name1")));
+					rsitem.appendChild(itli);
+					}
+				if(rsitem.getItemCount()==0){
+					Messagebox.show("ไม่พบสินค้าที่ค้นหา","information window", Messagebox.OK,Messagebox.INFORMATION);
+				}
+				
+				
+				
+			
+	 }catch (SQLException e){}
+}
+
+public void selectItem(){
+	Listitem idata = new Listitem();
+	idata = rsitem.getSelectedItem();
+	vSLItem = idata.getLabel();
+	application.setAttribute("itemcode", vSLItem);	
+	Executions.sendRedirect("index.zul");
+}
+    
+	]]>
+</zscript>
+<groupbox>
+<hbox>
+<label value="ป้อนชื่อหรือรหัสสินค้า" /><textbox id="txtitemsearch" width="330px" onOK="Searchitem()"/>
+<button label="ค้นหา" image="/img/Search1.png" onClick="Searchitem()" />
+</hbox>
+</groupbox>
+<listbox id="rsitem" mold="paging" onSelect="selectItem()">
+	<listhead>
+		<listheader label="รหัสสินค้า" sort="auto" width="180px"/>
+		<listheader label="ชื่อสินค้า" sort="auto" width="350px"/>
+	</listhead>
+</listbox>
+
+</window>
+</zk>

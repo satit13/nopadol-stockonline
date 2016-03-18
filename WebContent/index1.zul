@@ -1,0 +1,300 @@
+<?page title="Stock Online" contentType="text/html;charset=UTF-8"?>
+<zk>
+<window title="ระบบตรวจสอบสต็อกสินค้าออนไลน์  Beta Vesion." border="normal" onCreate="vsbpanel()">
+<label id="lblitemcode" value="${applicationScope['itemcode']}" visible="false" />
+<zscript language="Java">
+<![CDATA[
+
+ import java.sql.*;
+ import java.io.*;
+ import org.zkoss.zk.ui.Executions;
+ import org.zkoss.zk.ui.Component;   
+ import org.zkoss.zk.ui.event.Event;
+ import org.zkoss.zk.ui.event.ForwardEvent;
+ import java.text.DecimalFormat;
+ import org.zkoss.zul.mesg.*;
+ 
+ DecimalFormat duformat = new DecimalFormat("#,###.00");	
+ String vServer;
+ String vURL;
+ String vUser;
+ String vPassword;
+ String vDBname;
+ vServer="//192.168.0.7:1433;";
+ vUser="siravich";
+ vPassword ="thaikom$$";
+ vDBname="bcnp";
+ String vitmcodex;
+ String vItem;
+ String vSLItem;
+ Double vTotalstk;
+ Double vSTKqty;
+ String vUnitcode;
+ 
+ Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+ 
+ public void loadITMDetail(){
+	
+	 vitmcodex=lblitemcode.getValue();
+	
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+"";   
+	 try {
+		 Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+ 		Statement s = conn.createStatement();
+			s.executeQuery("exec USP_STK_Chkstockonline '"+vitmcodex+"'");			
+			ResultSet rs = s.getResultSet();		
+			while(stkls.getItemCount()>0 ){
+			stkls.removeItemAt(0);	
+			}
+			vSTKqty=0.00;
+			vTotalstk=0.00;
+			while (rs.next()){	
+			
+			
+			vUnitcode=rs.getString("defstkunitcode");
+			Listitem itmli = new  Listitem();
+			itmli.appendChild(new Listcell(rs.getString("itemcode")));
+			itmli.appendChild(new Listcell(rs.getString("itemname")));
+			itmli.appendChild(new Listcell(duformat.format(Double.parseDouble(rs.getString("qty")))));
+			vSTKqty = Double.parseDouble(rs.getString("qty"));
+			if(vSTKqty !=null){
+				vTotalstk +=vSTKqty;
+				}
+			itmli.appendChild(new Listcell(rs.getString("defstkunitcode")));
+			itmli.appendChild(new Listcell(rs.getString("whcode")));
+			itmli.appendChild(new Listcell(rs.getString("shelfcode")));			
+			stkls.appendChild(itmli);
+			}
+			if(stkls.getItemCount()==0){
+				Messagebox.show("ไม่มีสินค้านี้ในสต็อก ทั้ง 2 สาขา","information", Messagebox.OK,Messagebox.INFORMATION);
+			}
+			stktotal.setValue(duformat.format(vTotalstk));
+			stkunit.setValue(vUnitcode);
+	 }catch (SQLException e){}
+	
+ }
+
+public void viewsearch(){
+	lblitemcode.setValue("");
+	final Window win = (Window) Executions.createComponents("popupsearch.zul",null, null);    	  		
+	win.setMaximizable(true);
+	win.doModal();
+	
+}
+public void Searchitem(){
+	
+	if(txtitemsearch.getText()==""){
+		Messagebox.show("กรุณาป้อนคำค้นหาก่อน","information", Messagebox.OK,Messagebox.INFORMATION);
+	}
+	else {
+	 vItem = txtitemsearch.getValue();
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+""; 
+	 try {
+		Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+		Statement s = conn.createStatement();
+			s.executeQuery("select a.*,ISNULL(b.qty,'00') as S01Qty,ISNULL(c.qty,'00') as S02Qty from "+
+						" ( select code,name1,defstkunitcode from bcitem"+
+						" where code like '%"+vItem+"%' or name1 like '%"+vItem+"%' "+ 
+						" )a left join "+ 
+						" (select itemcode,qty from bcstkwarehouse where whcode='S01'"+
+						" ) b on a.code=b.itemcode "+
+						" left join "+ 
+						" (select itemcode,qty from s02db.bcnp.dbo.bcstkwarehouse where whcode='S02'"+
+						" ) c on a.code=c.itemcode");			
+			ResultSet rs = s.getResultSet();			
+		
+				while(rsitem.getItemCount()>0 ){
+					rsitem.removeItemAt(0);	
+					}
+				while (rs.next()){					
+					Listitem itli = new  Listitem();
+					itli.appendChild(new Listcell(rs.getString("code")));
+					itli.appendChild(new Listcell(rs.getString("name1")));
+					itli.appendChild(new Listcell(duformat.format(Double.parseDouble(rs.getString("S01Qty")))));
+					itli.appendChild(new Listcell(duformat.format(Double.parseDouble(rs.getString("S02Qty")))));
+					itli.appendChild(new Listcell(rs.getString("defstkunitcode")));
+					rsitem.appendChild(itli);
+					}
+				if(rsitem.getItemCount()==0){
+					Messagebox.show("ไม่พบสินค้าที่ค้นหา","information", Messagebox.OK,Messagebox.INFORMATION);
+				}				
+			
+	 }catch (SQLException e){}
+	 pnitm2.setVisible(false);
+	 pnrsitm.setVisible(true);
+	 vcountApp();
+	}
+}
+public void selectItem(){
+	Listitem idata = new Listitem();
+	idata = rsitem.getSelectedItem();
+	vSLItem = idata.getLabel();	
+	vitmcodex = vSLItem;
+	loadITMDetail();
+	pnrsitm.setVisible(false);
+	pnitm2.setVisible(true);
+}
+public void vsbpanel(){
+	pnrsitm.setVisible(false);
+	pnitm2.setVisible(false);
+}
+
+public void vcountApp(){
+	 vURL="jdbc:sqlserver:"+vServer+"databaseName="+vDBname+"";   
+	 try {
+		 Connection conn = DriverManager.getConnection(vURL, vUser, vPassword);
+ 		Statement s = conn.createStatement();
+			s.executeQuery("exec USP_STK_Countused '1'");			
+			ResultSet rs = s.getResultSet();		
+	 }catch (SQLException e){}
+		
+}
+]]>
+</zscript>
+<groupbox style="background: #008BB6">
+<hbox >
+<div>
+<image src="/img/stkhdr.png" />
+</div>
+</hbox>
+</groupbox>
+<groupbox> 
+<div align="center">
+<hbox>
+<label value="ป้อนชื่อหรือรหัสสินค้า" style="font-size:12px; font-weight:bold;color:#333333"/>
+<textbox id="txtitemsearch" width="330px" height="20px" style="font-size:12px; font-weight:bold;color:#333333" tooltip="title" onOK="Searchitem()"/>
+<button label="ค้นหา" image="/img/Search1.png" onClick="Searchitem()" />
+</hbox>
+<popup id="title" width="280px">
+        <html style="font-weight:normal;color:#060BC5"><![CDATA[ป้อนชื่อสินค้า รหัสสินค้าที่ต้องการดูข้อมูล.:]]></html>
+ </popup>
+ <popup id="ttipitm" width="280px">
+        <html style="font-weight:normal;color:#060BC5"><![CDATA[คลิกที่รายการสินค้าเพื่อดูรายการตามชั้นเก็บ.]]></html>
+ </popup>
+<hbox visible="false">
+
+<button label="คลิกค้นหาสินค้า" style="font-size:30px; font-weight:bold;color:#333333" width="300px" height="50px" image="/img/searchb.png" onClick="viewsearch()" />
+
+</hbox>
+</div>
+</groupbox>
+
+<panel id="pnrsitm" >
+   <panelchildren>
+   <listbox id="rsitem" mold="paging" tooltip="ttipitm" onSelect="selectItem()">
+   	<listhead>
+		<listheader label="รหัสสินค้า" sort="auto" width="180px"/>
+		<listheader label="ชื่อสินค้า" sort="auto" />
+		<listheader label="S01" sort="auto" width="100px" align="right"/>
+		<listheader label="S02" sort="auto" width="100px" align="right"/>
+		<listheader label="หน่วยนับ" sort="auto" width="100px"/>		
+	</listhead>
+   </listbox>
+   </panelchildren>
+</panel>
+
+<panel id="pnitm2">
+  <panelchildren>
+<listbox id="stkls" >
+	 <listhead>
+		<listheader label="รหัส" sort="auto" width="120px"/>
+		<listheader label="ชื่อสินค้า" sort="auto" width="380px"/>
+		<listheader label="จำนวน" sort="auto" width="80px" align="right"/>
+		<listheader label="หน่วยนับ" sort="auto" width="50px"/>
+		<listheader label="คลัง" sort="auto" width="40px"/>
+		<listheader label="ชั้นเก็บ" sort="auto" width="40px"/>
+	 </listhead>
+	 <listfoot>
+		<listfooter label="" />
+		<listfooter><label value="ยอดรวมทั้งหมด" style="font-size:12px; font-weight:bold;color:#044ABC" /></listfooter>
+		<listfooter><label id="stktotal" style="font-size:12px; font-weight:bold;color:#044ABC" /></listfooter>
+		<listfooter><label id="stkunit" style="font-size:12px; font-weight:bold;color:#044ABC" /></listfooter>
+		<listfooter label=""></listfooter>
+		<listfooter label=""></listfooter>
+	</listfoot>	
+</listbox>
+  </panelchildren>
+</panel>
+
+
+<tabbox visible="false">
+	<tabs>
+		<tab label="ข้อมูลสินค้า" />
+		<tab label="ข้อมูลเอกสาร"  visible="false"/>
+	</tabs>
+	<tabpanels>
+		<tabpanel>
+		<hbox visible="false">
+		<label value="รหัสสินค้า" /> 
+		<label id="lblitemcode1" /> 
+		<label value="ชื่อสินค้า" />
+		<label id="lblitemname" />
+		<label value="คงเหลือรวม" />
+		<label id="lbltotalqty" />
+		<label id="lblunitcode" />
+		</hbox>
+	
+	<listbox id="stkls1" >
+	 <listhead>
+		<listheader label="รหัส" sort="auto" width="120px"/>
+		<listheader label="ชื่อสินค้า" sort="auto" width="380px"/>
+		<listheader label="จำนวน" sort="auto" width="80px" align="right"/>
+		<listheader label="หน่วยนับ" sort="auto" width="50px"/>
+		<listheader label="คลัง" sort="auto" width="40px"/>
+		<listheader label="ชั้นเก็บ" sort="auto" width="40px"/>
+	 </listhead>		 
+</listbox>
+		
+		</tabpanel>
+		<tabpanel>
+		<tablelayout columns="3">
+		  <tablechildren>
+		    <panel title="ค้างจอง">
+		      <panelchildren>
+		      <listbox width="265px">
+	 			<listhead>
+				<listheader label="เลขที่ใบสั่งจอง" sort="auto" />
+				<listheader label="วันที่เอกสาร" sort="auto" />
+				<listheader label="จำนวน" sort="auto" />
+				<listheader label="มูลค่า" sort="auto" />
+			 	</listhead>	
+			  </listbox>
+		      </panelchildren>
+		    </panel>
+		  </tablechildren>
+		    <tablechildren>
+		    <panel title="ค้างส่ง">
+		      <panelchildren>
+		      <listbox width="265px">
+	 			<listhead>
+				<listheader label="เลขที่ใบมัดจำ" sort="auto" />
+				<listheader label="วันที่เอกสาร" sort="auto" />
+				<listheader label="จำนวน" sort="auto" />
+				<listheader label="มูลค่า" sort="auto" />
+			 	</listhead>	
+			  </listbox>		      
+		      </panelchildren>
+		    </panel>
+		  </tablechildren>
+		    <tablechildren>
+		    <panel title="ค้างรับ">
+		      <panelchildren>
+		      <listbox width="265px">
+	 			<listhead>
+				<listheader label="เลขที่ใบซื้อ" sort="auto" />
+				<listheader label="วันที่เอกสาร" sort="auto" />
+				<listheader label="จำนวน" sort="auto" />
+				<listheader label="มูลค่า" sort="auto" />
+			 	</listhead>	
+			  </listbox>
+		      </panelchildren>
+		    </panel>
+		  </tablechildren>
+		</tablelayout>
+		</tabpanel>
+	</tabpanels>
+</tabbox>
+
+
+</window>
+</zk>
